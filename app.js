@@ -2,6 +2,10 @@
 (function(){
 "use strict";
 const JOBS = window.JOBS || [];
+const JC = window.JOBCORPS || {centers:[],summary:""};
+const TRAINING = window.TRAINING || {};
+const trainingFor = j => TRAINING[j.id] || (j.id===58 ? TRAINING[76] : null);
+const openJC = j => (j.jc_centers||[]).filter(c=>/^open/.test(c.status));
 const KEY = "career_compass_v1";
 const $ = (s, el=document) => el.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -207,7 +211,12 @@ function score(j){
     if(T.live==="yes" && !/^Military/.test(j.residential_option)) add(4,"Live-in training option",true);
     if(T.mil==="yes" && /Military/.test(j.residential_option)) add(3,"Military trains for this",true);
   }
-  if(j.job_corps_match && T.live!=="no") add(3,"Excelsior Springs Job Corps trains for this",true);
+  const jc=openJC(j);
+  if(jc.length && T.live!=="no"){
+    const es=jc.find(c=>/excelsior/i.test(c.c));
+    if(es) add(4,"Excelsior Springs Job Corps trains for this (free, housing included)",true);
+    else if(T.live==="yes" && S.s.move!=="stay") add(3,`Job Corps trains for this (nearest: ${jc[0].c}, ${jc[0].st}, ${jc[0].mi} mi)`,true);
+  }
   if(T.license==="no" && s.travel>=4) add(-6,"Needs a driver's license");
   // 7. Values
   S.values.forEach(v=>{ if(v==="pay") return; const vs=valueScore(v,j)*8; add(vs, vs>0?`${VALUE_LABEL[v]}: strong here`:`${VALUE_LABEL[v]}: weak here`); });
@@ -379,7 +388,7 @@ function jobCard(j){
     `<span class="tag sun">${k(j.pay_median)} typical pay</span>`,
     j.paid_while_learning?`<span class="tag sky">Paid while learning</span>`:`<span class="tag peach">${esc(j.training_cost)} training</span>`,
     `<span class="tag plum">Book work ${"●".repeat(j.classroom_load)}${"○".repeat(5-j.classroom_load)}</span>`,
-    j.job_corps_match?`<span class="tag green">Excelsior Springs Job Corps</span>`:"",
+    openJC(j).some(c=>/excelsior/i.test(c.c))?`<span class="tag green">Excelsior Springs Job Corps</span>`:openJC(j).length?`<span class="tag green">Job Corps (${openJC(j).length})</span>`:"",
     j.residential_option?`<span class="tag peach">Housing-included option</span>`:"",
     `<span class="tag ${j.outlook.startsWith("Growing")?"green":j.outlook==="Shrinking"?"red":"sky"}">${esc(j.outlook)}</span>`
   ].join("");
@@ -406,6 +415,8 @@ function jobCard(j){
       <div class="fact"><h4>Credential</h4><p>${esc(j.credential)} · ${esc(j.education)}</p></div>
       <div class="fact"><h4>Around KC</h4><p>${esc(j.openings_kc)} openings · pay ${esc(j.kc_pay_note)}</p></div>
     </div>
+    ${jcBlock(j)}
+    ${trainingBlock(j)}
     <div class="kicker" style="margin-top:6px">Working conditions</div>
     <div class="meters">
       ${meter("Physical",s.physical,flags.has("physical"))}${meter("Outdoors",s.outdoors,flags.has("outdoors"))}${meter("Danger",s.hazard,flags.has("hazard"))}
@@ -424,6 +435,35 @@ function jobCard(j){
     </div>
     <input type="text" data-note="${j.id}" value="${esc(S.notes[j.id]||"")}" placeholder="Why? (optional, a few words)" style="margin-top:10px">
   </article>`;
+}
+
+function jcBlock(j){
+  const all=(j.jc_centers||[]); if(!all.length) return "";
+  const open=all.filter(c=>/^open/.test(c.status));
+  const row=c=>`<li><a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.c)}</a>, ${esc(c.st)} <span class="muted">· ${c.mi!=null?c.mi+" mi":""}${/^open/.test(c.status)?"":" · "+esc(c.status)}</span></li>`;
+  const first=(open.length?open:all).slice(0,3);
+  return `<div class="jc-box"><div class="kicker">Job Corps: free training, housing included</div>
+    <p class="q-help" style="margin:4px 0 6px">${all.length} center${all.length>1?"s":""} train for this${open.length!==all.length?` (${open.length} confirmed open)`:""}. Nearest:</p>
+    <ul class="mini">${first.map(row).join("")}</ul>
+    ${all.length>3?`<details><summary>See all ${all.length}</summary><ul class="mini">${all.map(row).join("")}</ul></details>`:""}
+  </div>`;
+}
+function trainingBlock(j){
+  const t=trainingFor(j); if(!t||!t.programs||!t.programs.length) return "";
+  const tag=(c,x)=>x&&!/^check with/i.test(x)?`<span class="tag ${c}">${esc(x)}</span>`:"";
+  return `<div class="train-box"><div class="kicker">Training programs we found</div>
+    ${t.best_first_step?`<p class="first-step"><b>Best first step:</b> ${esc(t.best_first_step)}</p>`:""}
+    ${t.programs.map(p=>`<div class="prog">
+      <div class="prog-h"><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.name)}</a><span class="muted"> · ${esc(p.provider)}</span></div>
+      <div class="tags" style="margin:6px 0">${tag("plum",p.type)}${tag("sky",p.location)}${p.residential?tag("peach","Housing included"):""}${/yes/i.test(p.paid_while_training)?tag("green","Paid while training"):/partial/i.test(p.paid_while_training)?tag("sun","Partly paid"):""}${tag("sun",p.length)}${tag("",p.cost)}${p.verified===false?tag("red","Not verified"):""}</div>
+      <p class="prog-d">${p.next_start_or_application?`<b>Next start:</b> ${esc(p.next_start_or_application)}. `:""}${p.entry_requirements?`<b>Needs:</b> ${esc(p.entry_requirements)}. `:""}${p.hands_on_fit?`<b>Hands-on fit:</b> ${esc(p.hands_on_fit)}. `:""}${p.funding?`<b>Funding:</b> ${esc(p.funding)}. `:""}${p.notes?esc(p.notes):""}</p>
+    </div>`).join("")}
+    ${t.watch_outs?`<p class="q-help"><b>Watch out:</b> ${esc(t.watch_outs)}</p>`:""}
+  </div>`;
+}
+function fundingBlock(){
+  const t=TRAINING[0]; if(!t||!t.programs) return "";
+  return `<p class="section-label">Ways to pay for training</p><div class="q">${t.programs.map(p=>`<div class="prog"><div class="prog-h"><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.name)}</a><span class="muted"> · ${esc(p.provider)}</span></div><p class="prog-d">${esc(p.notes||p.funding||"")}${p.entry_requirements?` <b>Who qualifies:</b> ${esc(p.entry_requirements)}`:""}</p></div>`).join("")}</div>`;
 }
 function queue(){
   const R=results();
@@ -469,7 +509,8 @@ function vResults(st){
         <span class="tag green">${j.months_to_entry<=1?"Start now":whenLabel(j.months_to_entry)+" to start"}</span>
         <span class="tag sun">${k(j.pay_low)}–${k(j.pay_high)}</span>
         ${j.paid_while_learning?`<span class="tag sky">Paid while learning</span>`:""}
-        ${j.job_corps_match?`<span class="tag green">Job Corps</span>`:j.residential_option?`<span class="tag peach">Housing option</span>`:""}
+        ${openJC(j).length?`<span class="tag green">Job Corps (${openJC(j).length} centers)</span>`:j.residential_option?`<span class="tag peach">Housing option</span>`:""}
+        ${trainingFor(j)?`<span class="tag plum">${trainingFor(j).programs.length} training programs found</span>`:""}
       </div>
       <div class="cols"><ul class="why pro">${r.pros.map(p=>`<li>${esc(p)}</li>`).join("")}</ul><ul class="why con">${r.cons.map(p=>`<li>${esc(p)}</li>`).join("")}</ul></div>
       <hr><button class="btn ghost sm" type="button" data-open="${j.id}">Change?</button>
@@ -486,6 +527,8 @@ function vResults(st){
     <td style="font-size:13px">${esc(r.pros[0]||"")}${r.cons[0]?`<div style="color:var(--t-red)">${esc(r.cons[0])}</div>`:""}</td></tr>`).join("")}
   </tbody></table></div>
 
+  ${fundingBlock()}
+  ${JC.summary?`<div class="note"><span class="i-dot">i</span><span><b>Job Corps status:</b> ${esc(JC.summary)}</span></div>`:""}
   <p class="section-label">Share your results</p>
   <div class="export">
     <div class="q"><p class="q-title">Copy for the Google Sheet</p><p>Copies every job's suggestion. Paste into cell A1 of the "Assessment Results" tab.</p><button class="btn primary sm" data-act="copy" type="button">Copy results</button></div>
