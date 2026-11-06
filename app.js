@@ -401,7 +401,8 @@ function links(j){
     <a href="https://www.apprenticeship.gov/apprenticeship-job-finder?keyword=${q}&location=Kansas%20City%2C%20MO" target="_blank" rel="noopener">Apprenticeships</a>
   </div>`;
 }
-function jobCard(j){
+const OPEN=new Set();
+function jobCard(j,emb){
   const r=score(j), B=budget(), s=j.scores;
   const max=Math.max(j.pay_high, B.gross)*1.08, pos=v=>clamp(v/max*100,0,100);
   const flags = new Set(CONDITIONS.filter(c=>S.c[c.id]===0 && s[c.id]>=4).map(c=>c.id));
@@ -414,7 +415,7 @@ function jobCard(j){
     j.residential_option?`<span class="tag peach">Housing-included option</span>`:"",
     `<span class="tag ${j.outlook.startsWith("Growing")?"green":j.outlook==="Shrinking"?"red":"sky"}">${esc(j.outlook)}</span>`
   ].join("");
-  return `<article class="jobcard">
+  return `<article class="jobcard${emb?" emb":""}">
     <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap">
       <div class="kicker">${esc(j.cluster)} · O*NET: you said ${esc(j.original)}</div>
       <span class="fit-pill fit-${r.sug}">Fit ${r.score} · ${r.sug}</span>
@@ -450,9 +451,9 @@ function jobCard(j){
       <div><div class="kicker">Concerns</div><ul class="why con">${r.cons.map(p=>`<li>${esc(p)}</li>`).join("")||"<li class='muted'>None</li>"}</ul></div></div>`:""}
     ${links(j)}
     <div class="verdict" role="group" aria-label="Your answer">
-      <button type="button" class="btn ghost v-no" data-rate="No" aria-pressed="${S.ratings[j.id]==="No"}">No</button>
-      <button type="button" class="btn ghost v-maybe" data-rate="Maybe" aria-pressed="${S.ratings[j.id]==="Maybe"}">Maybe</button>
-      <button type="button" class="btn ghost v-yes" data-rate="Yes" aria-pressed="${S.ratings[j.id]==="Yes"}">Yes</button>
+      <button type="button" class="btn ghost v-no" data-rate="No"${emb?` data-rid="${j.id}"`:""} aria-pressed="${S.ratings[j.id]==="No"}">No</button>
+      <button type="button" class="btn ghost v-maybe" data-rate="Maybe"${emb?` data-rid="${j.id}"`:""} aria-pressed="${S.ratings[j.id]==="Maybe"}">Maybe</button>
+      <button type="button" class="btn ghost v-yes" data-rate="Yes"${emb?` data-rid="${j.id}"`:""} aria-pressed="${S.ratings[j.id]==="Yes"}">Yes</button>
     </div>
     <input type="text" data-note="${j.id}" value="${esc(S.notes[j.id]||"")}" placeholder="Why? (optional, a few words)" style="margin-top:10px">
   </article>`;
@@ -542,7 +543,8 @@ function vResults(st){
         ${(CATALOG.byJob[j.id]||[]).length?`<span class="tag plum">${CATALOG.byJob[j.id].length} training programs</span>`:""}
       </div>
       <div class="cols"><ul class="why pro">${r.pros.map(p=>`<li>${esc(p)}</li>`).join("")}</ul><ul class="why con">${r.cons.map(p=>`<li>${esc(p)}</li>`).join("")}</ul></div>
-      <hr><button class="btn ghost sm" type="button" data-open="${j.id}">Change?</button>
+      <hr><button class="btn ghost sm" type="button" data-expand="t${j.id}" aria-expanded="${OPEN.has("t"+j.id)}">${OPEN.has("t"+j.id)?"Hide job card ▴":"See full job card ▾"}</button>
+      ${OPEN.has("t"+j.id)?jobCard(j,true):""}
     </div></div>`;}).join("")}</div>
 
   <p class="section-label">Every job</p>
@@ -551,9 +553,9 @@ function vResults(st){
     <input type="search" id="search" placeholder="Search jobs" value="${esc(S.search)}">
   </div>
   <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Job</th><th>Suggested</th><th>Fit</th><th>Typical pay</th><th>To start</th><th>Why / concerns</th></tr></thead><tbody>
-  ${filt.map(r=>`<tr><td><button class="name" type="button" data-open="${r.j.id}">${esc(r.j.name)}</button><div class="muted" style="font-size:12px">${esc(r.j.cluster)}${S.ratings[r.j.id]?" · you said "+S.ratings[r.j.id]:""}</div></td>
+  ${filt.map(r=>`<tr><td><button class="name" type="button" data-expand="a${r.j.id}" aria-expanded="${OPEN.has("a"+r.j.id)}">${OPEN.has("a"+r.j.id)?"▾":"▸"} ${esc(r.j.name)}</button><div class="muted" style="font-size:12px">${esc(r.j.cluster)}${S.ratings[r.j.id]?" · you said "+S.ratings[r.j.id]:""}</div></td>
     <td><span class="fit-pill fit-${r.sug}">${r.sug}</span></td><td class="num">${r.score}</td><td class="num">${k(r.j.pay_median)}</td><td class="num">${whenLabel(r.j.months_to_entry)}</td>
-    <td style="font-size:13px">${esc(r.pros[0]||"")}${r.cons[0]?`<div style="color:var(--t-red)">${esc(r.cons[0])}</div>`:""}</td></tr>`).join("")}
+    <td style="font-size:13px">${esc(r.pros[0]||"")}${r.cons[0]?`<div style="color:var(--t-red)">${esc(r.cons[0])}</div>`:""}</td></tr>${OPEN.has("a"+r.j.id)?`<tr class="xrow"><td colspan="6">${jobCard(r.j,true)}</td></tr>`:""}`).join("")}
   </tbody></table></div>
 
   ${fundingBlock()}
@@ -618,6 +620,8 @@ document.addEventListener("click", e=>{
   if(b.dataset.value){ const v=b.dataset.value; if(S.values.includes(v)) S.values=S.values.filter(x=>x!==v); else { if(S.values.length>=3) S.values.shift(); S.values.push(v);} dirty(); save(); render(false); return; }
   if(b.dataset.queue){ S.queue=b.dataset.queue; S.qi=0; Q=null; save(); render(false); return; }
   if(b.dataset.qnav){ S.qi+=+b.dataset.qnav; save(); render(false); return; }
+  if(b.dataset.expand){ const id=b.dataset.expand; OPEN.has(id)?OPEN.delete(id):OPEN.add(id); const keep=window.scrollY, m=$("#main"), mk=m?m.scrollTop:0; render(false); window.scrollTo(0,keep); if(m) m.scrollTop=mk; return; }
+  if(b.dataset.rid){ const id=+b.dataset.rid, v=b.dataset.rate; S.ratings[id]=S.ratings[id]===v?undefined:v; if(!S.ratings[id]) delete S.ratings[id]; dirty(); save(); const keep=window.scrollY, m=$("#main"), mk=m?m.scrollTop:0; render(false); window.scrollTo(0,keep); if(m) m.scrollTop=mk; return; }
   if(b.dataset.rate){ rate(b.dataset.rate); return; }
   if(b.dataset.filter){ S.filter=b.dataset.filter; save(); render(false); return; }
   if(b.dataset.open){ S.queue="one"; S.focus=+b.dataset.open; S.qi=0; S.step=STEPS.findIndex(s=>s.id==="review"); Q=null; save(); render(true); return; }
