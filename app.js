@@ -5,6 +5,21 @@ const JOBS = window.JOBS || [];
 const JC = window.JOBCORPS || {centers:[],summary:""};
 const TRAINING = window.TRAINING || {};
 const trainingFor = j => TRAINING[j.id] || (j.id===58 ? TRAINING[76] : null);
+const CATALOG = window.CATALOG || {programs:[],byJob:{}};
+const PATH_GROUPS = [
+  ["Paid apprenticeships", p=>/apprentice/i.test(p.type)],
+  ["Employer pays you to train", p=>/employer/i.test(p.type)],
+  ["Military", p=>/military/i.test(p.type)],
+  ["Live-in schools and corps", p=>p.residential===true||/residential|conservation|job corps/i.test(p.type)],
+  ["Community college and trade school", p=>/college|school|certificate|nonprofit/i.test(p.type)],
+];
+function pathsFor(j){
+  const groups=PATH_GROUPS.map(([label])=>({label,items:[]})), other={label:"Other programs",items:[]};
+  (CATALOG.byJob[j.id]||[]).map(i=>CATALOG.programs[i]).forEach(p=>{
+    const g=PATH_GROUPS.findIndex(([,f])=>f(p)); (g<0?other:groups[g]).items.push(p);
+  });
+  return groups.concat([other]).filter(g=>g.items.length);
+}
 const openJC = j => (j.jc_centers||[]).filter(c=>/^open/.test(c.status));
 const KEY = "career_compass_v1";
 const $ = (s, el=document) => el.querySelector(s);
@@ -211,6 +226,13 @@ function score(j){
     if(T.live==="yes" && !/^Military/.test(j.residential_option)) add(4,"Live-in training option",true);
     if(T.mil==="yes" && /Military/.test(j.residential_option)) add(3,"Military trains for this",true);
   }
+  const progs=(CATALOG.byJob[j.id]||[]).map(i=>CATALOG.programs[i]);
+  const kc=p=>/kansas city|lee'?s summit|independence|overland|olathe|belton|raytown|blue springs|grandview|kck|liberty|lenexa|shawnee|claycomo|kingsville|north kansas/i.test(p.location||"");
+  const paidKC=progs.find(p=>kc(p)&&/yes/i.test(p.paid_while_training)&&!/military/i.test(p.type));
+  if(paidKC && T.earn && T.earn!=="no" && !j.paid_while_learning) add(T.earn==="must"?5:3,`Paid training in KC: ${paidKC.name} (${paidKC.provider})`,true);
+  const house=progs.find(p=>p.residential===true&&!/military/i.test(p.type));
+  if(house && T.live==="yes" && !j.residential_option) add(3,`Live-in training: ${house.name} (${house.location})`,true);
+  if(T.mil==="yes" && progs.some(p=>/military/i.test(p.type)) && !/Military/.test(j.residential_option||"")) add(3,"Military trains for this",true);
   const jc=openJC(j);
   if(jc.length && T.live!=="no"){
     const es=jc.find(c=>/excelsior/i.test(c.c));
@@ -415,7 +437,6 @@ function jobCard(j){
       <div class="fact"><h4>Credential</h4><p>${esc(j.credential)} · ${esc(j.education)}</p></div>
       <div class="fact"><h4>Around KC</h4><p>${esc(j.openings_kc)} openings · pay ${esc(j.kc_pay_note)}</p></div>
     </div>
-    ${jcBlock(j)}
     ${trainingBlock(j)}
     <div class="kicker" style="margin-top:6px">Working conditions</div>
     <div class="meters">
@@ -442,23 +463,31 @@ function jcBlock(j){
   const open=all.filter(c=>/^open/.test(c.status));
   const row=c=>`<li><a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.c)}</a>, ${esc(c.st)} <span class="muted">· ${c.mi!=null?c.mi+" mi":""}${/^open/.test(c.status)?"":" · "+esc(c.status)}</span></li>`;
   const first=(open.length?open:all).slice(0,3);
-  return `<div class="jc-box"><div class="kicker">Job Corps: free training, housing included</div>
+  return `<div class="jc-box"><div class="kicker">Job Corps: free, housing included</div>
     <p class="q-help" style="margin:4px 0 6px">${all.length} center${all.length>1?"s":""} train for this${open.length!==all.length?` (${open.length} confirmed open)`:""}. Nearest:</p>
     <ul class="mini">${first.map(row).join("")}</ul>
     ${all.length>3?`<details><summary>See all ${all.length}</summary><ul class="mini">${all.map(row).join("")}</ul></details>`:""}
   </div>`;
 }
-function trainingBlock(j){
-  const t=trainingFor(j); if(!t||!t.programs||!t.programs.length) return "";
+function progCard(p){
+  const d=x=>esc(String(x||"").trim().replace(/[.\s]+$/,""));
   const tag=(c,x)=>x&&!/^check with/i.test(x)?`<span class="tag ${c}">${esc(x)}</span>`:"";
-  return `<div class="train-box"><div class="kicker">Training programs we found</div>
-    ${t.best_first_step?`<p class="first-step"><b>Best first step:</b> ${esc(t.best_first_step)}</p>`:""}
-    ${t.programs.map(p=>`<div class="prog">
-      <div class="prog-h"><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.name)}</a><span class="muted"> · ${esc(p.provider)}</span></div>
-      <div class="tags" style="margin:6px 0">${tag("plum",p.type)}${tag("sky",p.location)}${p.residential?tag("peach","Housing included"):""}${/yes/i.test(p.paid_while_training)?tag("green","Paid while training"):/partial/i.test(p.paid_while_training)?tag("sun","Partly paid"):""}${tag("sun",p.length)}${tag("",p.cost)}${p.verified===false?tag("red","Not verified"):""}</div>
-      <p class="prog-d">${p.next_start_or_application?`<b>Next start:</b> ${esc(p.next_start_or_application)}. `:""}${p.entry_requirements?`<b>Needs:</b> ${esc(p.entry_requirements)}. `:""}${p.hands_on_fit?`<b>Hands-on fit:</b> ${esc(p.hands_on_fit)}. `:""}${p.funding?`<b>Funding:</b> ${esc(p.funding)}. `:""}${p.notes?esc(p.notes):""}</p>
-    </div>`).join("")}
-    ${t.watch_outs?`<p class="q-help"><b>Watch out:</b> ${esc(t.watch_outs)}</p>`:""}
+  return `<div class="prog">
+      <div class="prog-h">${p.url?`<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.name)}</a>`:esc(p.name)}<span class="muted"> · ${esc(p.provider)}</span></div>
+      <div class="tags" style="margin:6px 0">${tag("sky",p.location)}${p.residential===true?tag("peach","Housing included"):""}${/yes/i.test(p.paid_while_training)?tag("green","Paid while training"):/partial/i.test(p.paid_while_training)?tag("sun","Partly paid"):""}${tag("sun",p.length)}${tag("",p.cost)}${p.verified===false?tag("red","Not verified"):""}</div>
+      <p class="prog-d">${p.next_start_or_application?`<b>Next start:</b> ${d(p.next_start_or_application)}. `:""}${p.entry_requirements?`<b>Needs:</b> ${d(p.entry_requirements)}. `:""}${p.hands_on_fit?`<b>Hands-on fit:</b> ${d(p.hands_on_fit)}. `:""}${p.funding?`<b>Funding:</b> ${d(p.funding)}. `:""}${p.notes?esc(p.notes):""}</p>
+    </div>`;
+}
+function trainingBlock(j){
+  const t=trainingFor(j), groups=pathsFor(j), jc=jcBlock(j);
+  if(!groups.length && !jc && !(t&&t.best_first_step)) return `<div class="train-box"><div class="kicker">Ways in: specific programs</div><p class="q-help">We didn't find a training program for this one. People usually get in through a related job; see "Fastest way in" above.</p></div>`;
+  const n=groups.reduce((a,g)=>a+g.items.length,0);
+  return `<div class="train-box"><div class="kicker">Ways in: specific programs</div>
+    ${t&&t.best_first_step?`<p class="first-step"><b>Best first step:</b> ${esc(t.best_first_step)}</p>`:""}
+    ${groups.map(g=>`<details class="path-g"${g===groups[0]?" open":""}><summary><b>${esc(g.label)}</b> <span class="muted">· ${g.items.length}</span></summary>${g.items.map(progCard).join("")}</details>`).join("")}
+    ${jc}
+    ${!n?`<p class="q-help">Job Corps is the only specific program we found. See "Fastest way in" above for other routes.</p>`:""}
+    ${t&&t.watch_outs?`<p class="q-help"><b>Watch out:</b> ${esc(t.watch_outs)}</p>`:""}
   </div>`;
 }
 function fundingBlock(){
@@ -510,7 +539,7 @@ function vResults(st){
         <span class="tag sun">${k(j.pay_low)}–${k(j.pay_high)}</span>
         ${j.paid_while_learning?`<span class="tag sky">Paid while learning</span>`:""}
         ${openJC(j).length?`<span class="tag green">Job Corps (${openJC(j).length} centers)</span>`:j.residential_option?`<span class="tag peach">Housing option</span>`:""}
-        ${trainingFor(j)?`<span class="tag plum">${trainingFor(j).programs.length} training programs found</span>`:""}
+        ${(CATALOG.byJob[j.id]||[]).length?`<span class="tag plum">${CATALOG.byJob[j.id].length} training programs</span>`:""}
       </div>
       <div class="cols"><ul class="why pro">${r.pros.map(p=>`<li>${esc(p)}</li>`).join("")}</ul><ul class="why con">${r.cons.map(p=>`<li>${esc(p)}</li>`).join("")}</ul></div>
       <hr><button class="btn ghost sm" type="button" data-open="${j.id}">Change?</button>

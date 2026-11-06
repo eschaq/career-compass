@@ -228,3 +228,10 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;margin-top:6px
   .shell{display:block;box-shadow:none;margin:0}
   .main{background:#fff}
 }
+
+.path-g{border-top:1px solid var(--line);padding:8px 0}
+.path-g>summary{cursor:pointer;list-style:none;font-size:16px}
+.path-g>summary::-webkit-details-marker{display:none}
+.path-g>summary::before{content:"▸ ";color:var(--accent)}
+.path-g[open]>summary::before{content:"▾ "}
+.train-box .jc-box{margin-top:10px}
