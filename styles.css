@@ -241,3 +241,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;margin-top:6px
 .tbl tr.xrow .jobcard.emb{margin-top:0}
 .tbl .name[aria-expanded="true"]{color:var(--accent)}
 .tl-card .jobcard.emb>h3,.tl-card .jobcard.emb>h3+p{display:none}
+
+.narrow-cta{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;border:1.5px solid var(--accent);margin-top:8px}
+.narrow-cta .q-title{margin:0}
+.narrow-cta .btn{text-decoration:none}

@@ -525,6 +525,7 @@ function vReview(st){
 function whenLabel(m){ return m<=1?"Start now":m<12?`~${m} months`:m<24?"~1 year":`~${Math.round(m/12)} years`; }
 function vResults(st){
   S.done=true; save();
+  try{ localStorage.setItem("career_compass_results", JSON.stringify({at:Date.now(), rows:rows()})); }catch(e){}
   const R=results(), shown=R.slice(0,10);
   const filt = R.filter(r=>(S.filter==="All"||r.sug===S.filter) && (!S.search || r.j.name.toLowerCase().includes(S.search.toLowerCase())));
   const cnt = s=>R.filter(r=>r.sug===s).length;
@@ -546,6 +547,8 @@ function vResults(st){
       <hr><button class="btn ghost sm" type="button" data-expand="t${j.id}" aria-expanded="${OPEN.has("t"+j.id)}">${OPEN.has("t"+j.id)?"Hide job card ▴":"See full job card ▾"}</button>
       ${OPEN.has("t"+j.id)?jobCard(j,true):""}
     </div></div>`;}).join("")}</div>
+
+  <div class="q narrow-cta"><div><p class="q-title">Ready to narrow it down?</p><p class="q-help">A quick second tool: sort these one at a time, cut to 8, then pick head to head to rank them. About 15 minutes.</p></div><a class="btn primary" href="shortlist.html">Narrow it down <span aria-hidden="true">&rarr;</span></a></div>
 
   <p class="section-label">Every job</p>
   <div class="toolbar">
