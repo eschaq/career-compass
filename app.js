@@ -21,6 +21,9 @@ function pathsFor(j){
   return groups.concat([other]).filter(g=>g.items.length);
 }
 const openJC = j => (j.jc_centers||[]).filter(c=>/^open/.test(c.status));
+const OPEN_NOTE = {Many:["green","Many KC openings","Lots of openings around Kansas City."], Some:["sky","Some KC openings","A steady number of openings around Kansas City."], Few:["red","Few KC openings","Few openings around Kansas City: expect a longer search or a move."]};
+const openTag = j => { const o=OPEN_NOTE[j.openings_kc]; return o?`<span class="tag ${o[0]}" title="${o[2]}">${o[1]}</span>`:""; };
+const openNote = j => { const o=OPEN_NOTE[j.openings_kc]; return o&&j.openings_kc==="Few"?`<p class="open-note">${o[2]}</p>`:""; };
 const KEY = "career_compass_v1";
 const $ = (s, el=document) => el.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -413,7 +416,8 @@ function jobCard(j,emb){
     `<span class="tag plum">Book work ${"●".repeat(j.classroom_load)}${"○".repeat(5-j.classroom_load)}</span>`,
     openJC(j).some(c=>/excelsior/i.test(c.c))?`<span class="tag green">Excelsior Springs Job Corps</span>`:openJC(j).length?`<span class="tag green">Job Corps (${openJC(j).length})</span>`:"",
     j.residential_option?`<span class="tag peach">Housing-included option</span>`:"",
-    `<span class="tag ${j.outlook.startsWith("Growing")?"green":j.outlook==="Shrinking"?"red":"sky"}">${esc(j.outlook)}</span>`
+    `<span class="tag ${j.outlook.startsWith("Growing")?"green":j.outlook==="Shrinking"?"red":"sky"}">${esc(j.outlook)}</span>`,
+    openTag(j)
   ].join("");
   return `<article class="jobcard${emb?" emb":""}">
     <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap">
@@ -422,7 +426,7 @@ function jobCard(j,emb){
     </div>
     <h3>${esc(j.name)}</h3>
     <p style="margin:0;font-size:17px;color:var(--ink-2)">${esc(j.summary)}</p>
-    <div class="tags">${tags}</div>
+    <div class="tags">${tags}</div>${openNote(j)}
     <div class="pay-bar" aria-label="Pay range">
       <div class="med" style="left:${pos(j.pay_median)}%" title="Typical"></div>
       ${Object.keys(S.m).length?`<div class="tgt" style="left:${pos(B.gross)}%">Your goal ${k(B.gross)}</div>`:""}
@@ -542,7 +546,8 @@ function vResults(st){
         ${j.paid_while_learning?`<span class="tag sky">Paid while learning</span>`:""}
         ${openJC(j).length?`<span class="tag green">Job Corps (${openJC(j).length} centers)</span>`:j.residential_option?`<span class="tag peach">Housing option</span>`:""}
         ${(CATALOG.byJob[j.id]||[]).length?`<span class="tag plum">${CATALOG.byJob[j.id].length} training programs</span>`:""}
-      </div>
+        ${openTag(j)}
+      </div>${openNote(j)}
       <div class="cols"><ul class="why pro">${r.pros.map(p=>`<li>${esc(p)}</li>`).join("")}</ul><ul class="why con">${r.cons.map(p=>`<li>${esc(p)}</li>`).join("")}</ul></div>
       <hr><button class="btn ghost sm" type="button" data-expand="t${j.id}" aria-expanded="${OPEN.has("t"+j.id)}">${OPEN.has("t"+j.id)?"Hide job card ▴":"See full job card ▾"}</button>
       ${OPEN.has("t"+j.id)?jobCard(j,true):""}
@@ -556,7 +561,7 @@ function vResults(st){
     <input type="search" id="search" placeholder="Search jobs" value="${esc(S.search)}">
   </div>
   <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Job</th><th>Suggested</th><th>Fit</th><th>Typical pay</th><th>To start</th><th>Why / concerns</th></tr></thead><tbody>
-  ${filt.map(r=>`<tr><td><button class="name" type="button" data-expand="a${r.j.id}" aria-expanded="${OPEN.has("a"+r.j.id)}">${OPEN.has("a"+r.j.id)?"▾":"▸"} ${esc(r.j.name)}</button><div class="muted" style="font-size:12px">${esc(r.j.cluster)}${S.ratings[r.j.id]?" · you said "+S.ratings[r.j.id]:""}</div></td>
+  ${filt.map(r=>`<tr><td><button class="name" type="button" data-expand="a${r.j.id}" aria-expanded="${OPEN.has("a"+r.j.id)}">${OPEN.has("a"+r.j.id)?"▾":"▸"} ${esc(r.j.name)}</button><div class="muted" style="font-size:12px">${esc(r.j.cluster)}${S.ratings[r.j.id]?" · you said "+S.ratings[r.j.id]:""} · <span class="open-${r.j.openings_kc}">${esc(r.j.openings_kc)} KC openings</span></div></td>
     <td><span class="fit-pill fit-${r.sug}">${r.sug}</span></td><td class="num">${r.score}</td><td class="num">${k(r.j.pay_median)}</td><td class="num">${whenLabel(r.j.months_to_entry)}</td>
     <td style="font-size:13px">${esc(r.pros[0]||"")}${r.cons[0]?`<div style="color:var(--t-red)">${esc(r.cons[0])}</div>`:""}</td></tr>${OPEN.has("a"+r.j.id)?`<tr class="xrow"><td colspan="6">${jobCard(r.j,true)}</td></tr>`:""}`).join("")}
   </tbody></table></div>

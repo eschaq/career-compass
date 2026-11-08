@@ -6,6 +6,10 @@ const TRAINING = window.TRAINING || {};
 const CATALOG = window.CATALOG || {programs: [], byJob: {}};
 const KEY = "career_shortlist_v1", SRC_KEY = "career_compass_results";
 const MAX_KEEP = 8;
+const OPEN_NOTE = {Many:["green","Many KC openings","Lots of openings around Kansas City."], Some:["sky","Some KC openings","A steady number of openings around Kansas City."], Few:["red","Few KC openings","Few openings around Kansas City: expect a longer search or a move."]};
+const openTag = j => { const o=OPEN_NOTE[j.openings_kc]; return o?`<span class="tag ${o[0]}" title="${o[2]}">${o[1]}</span>`:""; };
+const openNote = j => { const o=OPEN_NOTE[j.openings_kc]; return o&&j.openings_kc==="Few"?`<p class="open-note">${o[2]}</p>`:""; };
+
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -118,8 +122,8 @@ function tagRow(j){
     <span class="tag green">${j.months_to_entry <= 1 ? "Start now" : when(j.months_to_entry) + " to start"}</span>
     ${j.paid_while_learning ? `<span class="tag sky">Paid while learning</span>` : `<span class="tag peach">${esc(j.training_cost)} training</span>`}
     <span class="tag plum">Book work ${dots(j.classroom_load)}</span>
-    ${j.openings_kc ? `<span class="tag">KC openings: ${esc(j.openings_kc)}</span>` : ""}
-  </div>`;
+    ${openTag(j)}
+  </div>${openNote(j)}`;
 }
 function feel(j){
   const s = j.scores;
@@ -231,7 +235,7 @@ function miniRow(r, btn){
   const j = JOB[r.id];
   return `<div class="mini-card">
     <div class="mc-main"><b>${esc(j.name)}</b>
-      <span class="muted">${k(j.pay_median)} · ${j.months_to_entry <= 1 ? "start now" : when(j.months_to_entry) + " to start"}${j.paid_while_learning ? " · paid while learning" : ""}</span></div>
+      <span class="muted">${k(j.pay_median)} · ${j.months_to_entry <= 1 ? "start now" : when(j.months_to_entry) + " to start"}${j.paid_while_learning ? " · paid while learning" : ""} · <span class="open-${j.openings_kc}">${esc(j.openings_kc)} KC openings</span></span></div>
     ${btn}
   </div>`;
 }
@@ -286,6 +290,7 @@ function vsCard(id, side){
       <span><i>Book work</i>${dots(j.classroom_load)}</span>
       <span><i>Physical</i>${LEVEL[j.scores.physical]}</span>
       <span><i>Outdoors</i>${LEVEL[j.scores.outdoors]}</span>
+      <span><i>KC openings</i><b class="open-${j.openings_kc}">${esc(j.openings_kc)}</b></span>
       <span><i>Schedule</i>${esc(j.schedule_note)}</span>
       ${r && r.cons[0] ? `<span class="vs-con"><i>Biggest concern</i>${esc(r.cons[0])}</span>` : ""}
     </span>
@@ -405,7 +410,7 @@ function exportRows(){
   return ranked().map((id, i) => { const j = JOB[id], fs = firstStep(id), r = rowOf(id); return {
     Rank: i + 1, ID: id, Job: j.name, "Fit Score": r ? r.fit : "", "Typical Pay": j.pay_median, "Months to Start": j.months_to_entry,
     "Paid While Learning": j.paid_while_learning ? "Yes" : "No", "First Step": fs.text, "Programs Found": programsFor(id).length,
-    "Biggest Concern": r && r.cons[0] ? r.cons[0] : "" }; });
+    "KC Openings": j.openings_kc, "Biggest Concern": r && r.cons[0] ? r.cons[0] : "" }; });
 }
 function toDelim(list, d){
   if (!list.length) return "";

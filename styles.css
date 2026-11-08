@@ -245,3 +245,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;margin-top:6px
 .narrow-cta{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;border:1.5px solid var(--accent);margin-top:8px}
 .narrow-cta .q-title{margin:0}
 .narrow-cta .btn{text-decoration:none}
+
+.open-note{font-size:13px;color:var(--t-red);margin:6px 0 0}
+.open-Few{color:var(--t-red);font-weight:600}
+.open-Many{color:var(--t-green);font-weight:600}
